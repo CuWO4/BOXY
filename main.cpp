@@ -9,7 +9,7 @@
 #include <cstring>
 #include <time.h>
 
-static constexpr int fps = 60;
+static constexpr int fps = 50;
 
 static struct termios original_termios;
 
@@ -88,7 +88,8 @@ int has_input() {
 }
 
 static constexpr int left_drag_event = 32; /* may differ from XTerm or GTK terminal */
-bool get_next_mouse_event(int& event, int& col, int& row) {
+static constexpr int right_drag_event = 34;
+bool get_next_mouse_event(int& event, int& col, int& row, bool& is_release) {
   if (!has_input()) return false;
   char buf[1];
   while (read(STDIN_FILENO, buf, 1) == 1) /* ignore other inputs */ {
@@ -107,6 +108,7 @@ bool get_next_mouse_event(int& event, int& col, int& row) {
   }
   seq[seq_len] = '\0';
   if (sscanf(seq, "%d;%d;%d", &event, &col, &row) != 3) return false;
+  is_release = seq[seq_len - 1] == 'm';
   return true;
 }
 
@@ -135,14 +137,24 @@ void loop() {
     }
     last_time_us = cur_time_us;
 
-    int frame_col = -1, frame_row = -1;
+    int frame_col = -1, frame_row = -1, frame_release;
     int event, col, row;
-    while(get_next_mouse_event(event, col, row)) {
+    int light_set_col = -1, light_set_row = -1;
+    bool is_release;
+    while(get_next_mouse_event(event, col, row, is_release)) {
       if (event == left_drag_event) {
-        frame_col = col; frame_row = row;
+        frame_col = col; frame_row = row; frame_release = false;
       } else {
-        frame_col = frame_row = -1;
+        frame_col = frame_row = -1; frame_release = true;
       }
+
+      if (event == right_drag_event) {
+        light_set_col = col; light_set_row = row;
+      }
+    }
+
+    if (frame_release) {
+      last_row = last_col = -1;
     }
 
     int dx, dy;
@@ -159,11 +171,17 @@ void loop() {
     }
 
     boxy.spin(dx * 2, dy); // the character is not a square
-
-    switch_display_buffer();
-
     int term_h = -1, term_w = -1;
     get_terminal_size(term_h, term_w);
+    if (light_set_col >= 0) {
+      float light[3];
+      light[0] = light_set_row - (float) term_h / 2;
+      light[1] = light_set_col - (float) term_w / 2;
+      light[2] = 0;
+      boxy.set_light(light);
+    }
+
+    switch_display_buffer();
     boxy.render(term_h, term_w);
   }
 }
