@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <ctime>
 
 /*
  *           y
@@ -32,13 +33,40 @@
 
 class Boxy {
 public:
-  Boxy() {}
+  Boxy() {
+    srand(time(NULL));
+    axies[0][0] = rand();
+    axies[0][1] = rand();
+    axies[0][2] = rand();
+    float u_len = sqrt(dot(axies[0], axies[0]));
+    axies[0][0] /= u_len;
+    axies[0][1] /= u_len;
+    axies[0][2] /= u_len;
+    float a[3];
+    while (true) {
+      a[0] = rand();
+      a[1] = rand();
+      a[2] = rand();
+      float a_len = sqrt(dot(a, a));
+      a[0] /= a_len;
+      a[1] /= a_len;
+      a[2] /= a_len;
+
+      if (std::abs(dot(axies[0], a)) < 0.8) break;
+    }
+    cross(axies[1], axies[0], a);
+    float v_len = sqrt(dot(axies[1], axies[1]));
+    axies[1][0] /= v_len;
+    axies[1][1] /= v_len;
+    axies[1][2] /= v_len;
+    cross(axies[2], axies[0], axies[1]);
+  }
 
   void spin(float dx_2d, float dy_2d) {
     float len = sqrt(dx_2d * dx_2d + dy_2d * dy_2d);
     float cos_theta = len != 0 ? dy_2d / len : 0,
           sin_theta = len != 0 ? -dx_2d / len : 0,
-          phi = len / 50 * 3.14;
+          phi = len / 150 * 3.14;
     float mat[3][3] = {};
     mat[0][0] = 1 - (1 - cos(phi)) * sin_theta * sin_theta;
     mat[0][1] = (1 - cos(phi)) * sin_theta * cos_theta;
@@ -59,8 +87,6 @@ public:
 
     float step = 2. / std::min(term_h, term_w);
 
-    srand(axies[0][0] * 10237 + axies[1][1] * 126 + axies[2][2] * 1236876);
-
     for (int i = 0; i < term_h; i++) {
       for (int j = 0; j < term_w; j++) {
         int hit_face_idx;
@@ -70,9 +96,7 @@ public:
           if (norm[2] < 0) {
             for (int i = 0; i < 3; i++) norm[i] = -norm[i];
           }
-          float brightness = 
-            base_lightness[hit_face_idx] * (dot(light, norm) + 0.1)
-            + ((float) rand() / RAND_MAX / brightness_level - 0.5 / brightness_level);
+          float brightness = base_lightness[hit_face_idx] * (dot(light, norm) + 0.1);
           if (brightness < 0) brightness = 0;
           if (brightness >= 1) brightness = 0.999;
           char ch = brightness_char[(size_t) (brightness * brightness_level)];
@@ -108,6 +132,12 @@ private:
 
   float dot(const float a[3], const float b[3]) {
     return a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+  }
+
+  void cross(float res[3], const float a[3], const float b[3]) {
+    res[0] = a[1] * b[2] - a[2] * b[1];
+    res[1] = a[2] * b[0] - a[0] * b[2];
+    res[2] = a[0] * b[1] - a[1] * b[0];
   }
 
   bool is_hit(int& hit_face_idx, float x, float y) {
@@ -155,7 +185,7 @@ private:
 
 
   float light[3] = { 0, 1, 0 };
-  float axies[3][3] = { {1, 0, 0}, {0, 1, 0}, {0, 0, 1} };
+  float axies[3][3] = {};
 
   float base_lightness[3] = { 0.8, 0.9, 1.0 };
   const char* brightness_char = "```````.''''::_,,,^^^===;>>><!rc/zzzLv)|i{3lnZya2wwwwww6dVObXXXXH8R#BgMMNQQQ%%&&@@@@@@@@@@@@@@@@@@@";

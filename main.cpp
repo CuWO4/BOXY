@@ -10,6 +10,7 @@
 #include <time.h>
 
 static constexpr int fps = 50;
+float v_decay = pow(0.05, 1. / fps);
 
 static struct termios original_termios;
 
@@ -93,6 +94,7 @@ int has_input() {
 
 static constexpr int left_drag_event = 32; /* may differ from XTerm or GTK terminal */
 static constexpr int right_drag_event = 34;
+static constexpr int no_move_event = 0;
 bool get_next_mouse_event(int& event, int& col, int& row, bool& is_release) {
   if (!has_input()) return false;
   char buf[1];
@@ -133,48 +135,43 @@ void loop() {
   Boxy boxy;
 
   time_t last_time_us = 0;
-  int last_col, last_row = -1;
+  int last_col = -1, last_row = -1;
+  bool is_pressing = false;
+  float dx = 0, dy = 0;
   while (1) {
     time_t cur_time_us;
     while ((cur_time_us = get_us()) - last_time_us < 1000000 / fps) {
-      usleep(2000);
+      usleep(500);
     }
     last_time_us = cur_time_us;
 
-    int frame_col = -1, frame_row = -1, frame_release;
-    int event, col, row;
+    int col, row;
+    bool is_release = false;
     int light_set_col = -1, light_set_row = -1;
-    bool is_release;
-    while(get_next_mouse_event(event, col, row, is_release)) {
-      if (event == left_drag_event) {
-        frame_col = col; frame_row = row; frame_release = false;
-      } else {
-        frame_col = frame_row = -1; frame_release = true;
-      }
-
-      if (event == right_drag_event) {
-        light_set_col = col; light_set_row = row;
+    int e, c, r;
+    while(get_next_mouse_event(e, c, r, is_release)) {
+      if (e == left_drag_event) {
+        col = c; row = r; is_pressing = true;
+      } else if (e == right_drag_event) {
+        light_set_col = c; light_set_row = r;
+      } else if (e == no_move_event) {
+        col = c; row = r; is_pressing = !is_release;
       }
     }
 
-    if (frame_release) {
-      last_row = last_col = -1;
-    }
-
-    int dx, dy;
-    if (frame_col == -1 || frame_row == -1) {
-      dx = dy = 0;
-    } else {
-      if (last_col == -1 || last_row == -1) {
+    if (is_pressing) {
+      if (last_col < 0) {
         dx = dy = 0;
       } else {
-        dx = frame_row - last_row;
-        dy = frame_col - last_col;
+        dx = row - last_row; dy = col - last_col;
       }
-      last_row = frame_row; last_col = frame_col;
+      last_row = row; last_col = col;
+    } else {
+      last_col = last_row = -1;
+      dx *= v_decay; dy *= v_decay;
     }
-
     boxy.spin(dx * 2, dy); // the character is not a square
+
     int term_h = -1, term_w = -1;
     get_terminal_size(term_h, term_w);
     if (light_set_col >= 0) {
