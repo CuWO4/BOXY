@@ -17,6 +17,10 @@ void cleanup() {
   const char disable_mouse[] = "\033[?1003l\033[?1006l";
   write(STDOUT_FILENO, disable_mouse, sizeof(disable_mouse) - 1);
   tcsetattr(STDIN_FILENO, TCSAFLUSH, &original_termios);
+
+  const char show_cursor[] = "\033[?25h";
+  write(STDOUT_FILENO, show_cursor, sizeof(show_cursor) - 1);
+  fflush(stdout);
 }
 
 void clear() {
